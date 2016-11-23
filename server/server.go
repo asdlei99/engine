@@ -53,7 +53,7 @@ func (server *Server) Serve() error {
 	}
 }
 
-func (server *Server) Stop() {
+func (server *Server) Close() {
 	server.listener.Close()
 }
 
