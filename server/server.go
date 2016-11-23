@@ -19,12 +19,12 @@ type Codec interface {
 }
 
 type Handler interface {
-	HandleConn(*net.Conn)
+	HandleConn(net.Conn)
 }
 
-type HandlerFunc func(*net.Conn)
+type HandlerFunc func(net.Conn)
 
-func (hf HandlerFunc) HandleConn(conn *net.Conn) {
+func (hf HandlerFunc) HandleConn(conn net.Conn) {
 	hf(conn)
 }
 
@@ -48,7 +48,7 @@ func (server *Server) Serve() error {
 		}
 
 		go func() {
-			server.handler.HandleConn(&conn)
+			server.handler.HandleConn(conn)
 		}()
 	}
 }
@@ -57,20 +57,20 @@ func (server *Server) Close() {
 	server.listener.Close()
 }
 
-func Dial(network string, address string, codec Codec) (*net.Conn, error) {
+func Dial(network string, address string, codec Codec) (net.Conn, error) {
 	conn, err := net.Dial(network, address)
 	if err != nil {
 		return nil, err
 	}
-	return &conn, nil
+	return conn, nil
 }
 
-func DialTimeout(network string, address string, timeout time.Duration, codec Codec) (*net.Conn, error) {
+func DialTimeout(network string, address string, timeout time.Duration, codec Codec) (net.Conn, error) {
 	conn, err := net.DialTimeout(network, address, timeout)
 	if err != nil {
 		return nil, err
 	}
-	return &conn, nil
+	return conn, nil
 }
 
 func Accept(listener net.Listener) (net.Conn, error) {
