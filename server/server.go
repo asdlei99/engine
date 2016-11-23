@@ -1,6 +1,7 @@
 package server
 
 import (
+	"errors"
 	"io"
 	"net"
 	"strings"
@@ -8,9 +9,11 @@ import (
 )
 
 type Server struct {
+	network  string
 	listener net.Listener
 	codec    Codec
 	handler  Handler
+	udpConn  *net.UDPConn
 }
 
 type Codec interface {
@@ -19,38 +22,65 @@ type Codec interface {
 }
 
 type Handler interface {
-	HandleConn(net.Conn)
+	HandleConn(net.Conn, []byte)
 }
 
-type HandlerFunc func(net.Conn)
+type HandlerFunc func(net.Conn, []byte)
 
-func (hf HandlerFunc) HandleConn(conn net.Conn) {
-	hf(conn)
+func (hf HandlerFunc) HandleConn(conn net.Conn, udpData []byte) {
+	hf(conn, udpData)
 }
 
-func newServer(listener net.Listener, codec Codec, handler Handler) *Server {
+func newServer(network string, listener net.Listener, udpConn *net.UDPConn, codec Codec, handler Handler) *Server {
 	return &Server{
+		network:  network,
 		listener: listener,
+		udpConn:  udpConn,
 		codec:    codec,
 		handler:  handler,
 	}
+}
+
+func (server *Server) Network() string {
+	return server.network
 }
 
 func (server *Server) Listener() net.Listener {
 	return server.listener
 }
 
-func (server *Server) Serve() error {
-	for {
-		conn, err := Accept(server.listener)
-		if err != nil {
-			return err
-		}
+func (server *Server) UDPConn() *net.UDPConn {
+	return server.udpConn
+}
 
-		go func() {
-			server.handler.HandleConn(conn)
-		}()
+func (server *Server) Serve() error {
+	switch server.network {
+	case "tcp":
+		for {
+			conn, err := Accept(server.listener)
+			if err != nil {
+				return err
+			}
+
+			go func() {
+				server.handler.HandleConn(conn, nil)
+			}()
+		}
+	case "udp":
+		for {
+			buf := make([]byte, 10240)
+			n, _, err := server.udpConn.ReadFromUDP(buf)
+			if err != nil {
+				return err
+			}
+			go func() {
+				server.handler.HandleConn(nil, buf[:n])
+			}()
+		}
+	default:
+		return errors.New("Network type not supported")
 	}
+	return nil
 }
 
 func (server *Server) Close() {
@@ -100,9 +130,24 @@ func Accept(listener net.Listener) (net.Conn, error) {
 }
 
 func Listen(network string, address string, codec Codec, handler Handler) (*Server, error) {
-	listener, err := net.Listen(network, address)
-	if err != nil {
-		return nil, err
+	switch network {
+	case "tcp":
+		listener, err := net.Listen(network, address)
+		if err != nil {
+			return nil, err
+		}
+		return newServer(network, listener, nil, codec, handler), nil
+	case "udp":
+		addr, err := net.ResolveUDPAddr(network, address)
+		if err != nil {
+			return nil, err
+		}
+		conn, err := net.ListenUDP(network, addr)
+		if err != nil {
+			return nil, err
+		}
+		return newServer(network, nil, conn, codec, handler), nil
+	default:
+		return nil, errors.New("Network type not supported")
 	}
-	return newServer(listener, codec, handler), nil
 }

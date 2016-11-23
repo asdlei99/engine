@@ -26,3 +26,6 @@ It aims to be a generic stream based network framework.
 - [ ] Add sesssion support.
 - [ ] Add codec support.
 - [ ] Add transport support.
+
+## RFCs
+* 
