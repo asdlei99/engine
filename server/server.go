@@ -22,13 +22,13 @@ type Codec interface {
 }
 
 type Handler interface {
-	HandleConn(net.Conn, *net.UDPConn, *net.UDPAddr, chan []byte)
+	HandleConn(net.Conn, *net.UDPConn, *net.UDPAddr, []byte)
 }
 
-type HandlerFunc func(net.Conn, *net.UDPConn, *net.UDPAddr, chan []byte)
+type HandlerFunc func(net.Conn, *net.UDPConn, *net.UDPAddr, []byte)
 
-func (hf HandlerFunc) HandleConn(conn net.Conn, udpConn *net.UDPConn, addr *net.UDPAddr, udpDataChan chan []byte) {
-	hf(conn, udpConn, addr, udpDataChan)
+func (hf HandlerFunc) HandleConn(conn net.Conn, udpConn *net.UDPConn, addr *net.UDPAddr, udpData []byte) {
+	hf(conn, udpConn, addr, udpData)
 }
 
 func newServer(network string, listener net.Listener, udpConn *net.UDPConn, codec Codec, handler Handler) *Server {
@@ -69,17 +69,14 @@ func (server *Server) Serve() error {
 	case "udp":
 		for {
 			buf := make([]byte, 10240)
+
 			n, remoteAddr, err := server.udpConn.ReadFromUDP(buf)
-
-			dataChan := make(chan []byte)
-
-			dataChan <- buf[:n]
-
 			if err != nil {
 				return err
 			}
+
 			go func() {
-				server.handler.HandleConn(nil, server.udpConn, remoteAddr, dataChan)
+				server.handler.HandleConn(nil, server.udpConn, remoteAddr, buf[:n])
 			}()
 		}
 	default:
